@@ -43,9 +43,8 @@ with gr.Blocks(title="Azure Blob Storage File Explorer") as demo:
     gr.Markdown("# Azure Blob Storage File Explorer")
     gr.Markdown("Browse and summarize files from your Azure Blob Storage container.")
     
-    # State for keeping track of files
-    file_state = gr.State([])
-    selected_file = gr.State(None)
+    # Store files list for reference
+    file_list = gr.State([])
     
     with gr.Row():
         with gr.Column(scale=1):
@@ -57,33 +56,34 @@ with gr.Blocks(title="Azure Blob Storage File Explorer") as demo:
             summarize_btn = gr.Button("Summarize Selected File", interactive=False)
             summary_output = gr.Textbox(label="Summary", lines=10, interactive=False)
     
-    # Connect the components with functions
-    def update_file_list(folder, file_state):
+    # Update file list function
+    def update_file_list(folder):
         files, error = list_blobs(folder)
         if error:
-            return gr.Dropdown.update(choices=[], value=None), [], error
-        return gr.Dropdown.update(choices=files, value=None), files, ""
+            return [], [], error
+        return files, files, ""
     
+    # Connect the components with functions
     list_btn.click(
         fn=update_file_list,
-        inputs=[folder_input, file_state],
-        outputs=[file_dropdown, file_state, summary_output]
+        inputs=[folder_input],
+        outputs=[file_dropdown, file_list, summary_output]
     )
     
-    # Enable the summarize button when a file is selected
-    def update_selection(file):
-        return gr.Button.update(interactive=bool(file)), file
+    # Update button state when file is selected
+    def update_button_state(selected_file):
+        return selected_file != None and selected_file != ""
     
     file_dropdown.change(
-        fn=update_selection,
+        fn=update_button_state,
         inputs=[file_dropdown],
-        outputs=[summarize_btn, selected_file]
+        outputs=[summarize_btn]
     )
     
     # Summarize the selected file
     summarize_btn.click(
         fn=summarize_file,
-        inputs=[selected_file],
+        inputs=[file_dropdown],
         outputs=[summary_output]
     )
 
