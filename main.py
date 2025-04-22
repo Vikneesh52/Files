@@ -25,10 +25,8 @@ def list_blobs(folder_prefix=""):
         # Extract only file names (without the full path)
         files = []
         for blob in blob_list:
-            # Remove the folder prefix to get just the filename
-            relative_path = blob.name[len(full_prefix):] if blob.name.startswith(full_prefix) else blob.name
-            # Only add it if it's not an empty string and not a folder (no trailing slash)
-            if relative_path and not relative_path.endswith('/'):
+            # Only add it if it's not a folder (no trailing slash)
+            if not blob.name.endswith('/'):
                 files.append(blob.name)
         
         return files, None
@@ -45,34 +43,47 @@ with gr.Blocks(title="Azure Blob Storage File Explorer") as demo:
     gr.Markdown("# Azure Blob Storage File Explorer")
     gr.Markdown("Browse and summarize files from your Azure Blob Storage container.")
     
+    # State for keeping track of files
+    file_state = gr.State([])
+    selected_file = gr.State(None)
+    
     with gr.Row():
         with gr.Column(scale=1):
             folder_input = gr.Textbox(label="Subfolder (optional)", placeholder="Enter subfolder path or leave empty")
             list_btn = gr.Button("List Files")
-            file_list = gr.Radio(label="Files", choices=[], interactive=True)
+            file_dropdown = gr.Dropdown(label="Files", choices=[], interactive=True)
         
         with gr.Column(scale=2):
             summarize_btn = gr.Button("Summarize Selected File", interactive=False)
             summary_output = gr.Textbox(label="Summary", lines=10, interactive=False)
     
     # Connect the components with functions
+    def update_file_list(folder, file_state):
+        files, error = list_blobs(folder)
+        if error:
+            return gr.Dropdown.update(choices=[], value=None), [], error
+        return gr.Dropdown.update(choices=files, value=None), files, ""
+    
     list_btn.click(
-        fn=list_blobs,
-        inputs=[folder_input],
-        outputs=[file_list, summary_output]
+        fn=update_file_list,
+        inputs=[folder_input, file_state],
+        outputs=[file_dropdown, file_state, summary_output]
     )
     
     # Enable the summarize button when a file is selected
-    file_list.change(
-        fn=lambda x: gr.Button.update(interactive=True if x else False),
-        inputs=file_list,
-        outputs=summarize_btn
+    def update_selection(file):
+        return gr.Button.update(interactive=bool(file)), file
+    
+    file_dropdown.change(
+        fn=update_selection,
+        inputs=[file_dropdown],
+        outputs=[summarize_btn, selected_file]
     )
     
     # Summarize the selected file
     summarize_btn.click(
         fn=summarize_file,
-        inputs=[file_list],
+        inputs=[selected_file],
         outputs=[summary_output]
     )
 
